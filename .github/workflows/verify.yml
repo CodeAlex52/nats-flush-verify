@@ -19,17 +19,21 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Overlay files
+      - name: Overlay files (via API, no raw CDN caching)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VARIANT=${{ inputs.variant }}
-          BASE=https://raw.githubusercontent.com/CodeAlex52/nats-flush-verify/main
+          fetch() {
+            gh api "repos/CodeAlex52/nats-flush-verify/contents/overlay/$1?ref=main" --jq .content | base64 -d
+          }
           if [ "$VARIANT" = "green" ]; then
-            curl -fsSL "$BASE/overlay/nats_fixed.go" -o nats.go
+            fetch nats_fixed.go > nats.go
           else
-            curl -fsSL "$BASE/overlay/nats_upstream.go" -o nats.go
+            fetch nats_upstream.go > nats.go
           fi
-          curl -fsSL "$BASE/overlay/nats_flush_test.go" -o nats_flush_test.go
+          fetch nats_flush_test.go > nats_flush_test.go
       - name: Run partial-write flush regression test
         run: |
           set -euo pipefail
