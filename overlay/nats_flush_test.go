@@ -39,8 +39,19 @@ func TestFlushRetriesPartialWrite(t *testing.T) {
 	frame := []byte("PUB foo 5\r\nhello\r\n")
 	w.bufs = append(w.bufs, frame...)
 
+	// First flush: the write times out after the kernel accepted the first 10
+	// bytes.  The unsent remainder must be preserved (not dropped) so the
+	// protocol frame can be completed.
+	if err := w.flush(); err == nil {
+		t.Fatal("expected the partial write to surface the write error")
+	}
+	if got := calls.data.String(); got != string(frame[:10]) {
+		t.Fatalf("expected only the accepted prefix on the wire, got %q", got)
+	}
+
+	// Second flush: the remainder completes the protocol frame.
 	if err := w.flush(); err != nil {
-		t.Fatalf("flush() returned an error after retrying the partial write: %v", err)
+		t.Fatalf("flush() returned an error while completing the frame: %v", err)
 	}
 	if got := calls.data.String(); got != string(frame) {
 		t.Fatalf("protocol frame is torn: got %q, want %q", got, string(frame))
