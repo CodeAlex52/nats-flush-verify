@@ -1,0 +1,36 @@
+name: flush-partial-write-verify
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "red (upstream nats.go) or green (fixed nats.go)"
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upstream nats.go at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: nats-io/nats.go
+          ref: 5adc9d5d34ce8e3b7b8b002c5bd502a8b7a323d3
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Overlay files
+        run: |
+          set -euo pipefail
+          VARIANT=${{ inputs.variant }}
+          BASE=https://raw.githubusercontent.com/CodeAlex52/nats-flush-verify/main
+          if [ "$VARIANT" = "green" ]; then
+            curl -fsSL "$BASE/overlay/nats_fixed.go" -o nats.go
+          else
+            curl -fsSL "$BASE/overlay/nats_upstream.go" -o nats.go
+          fi
+          curl -fsSL "$BASE/overlay/nats_flush_test.go" -o nats_flush_test.go
+      - name: Run partial-write flush regression test
+        run: |
+          set -euo pipefail
+          go test . -run TestFlushRetriesPartialWrite -v 2>&1 | tee flush-test.log
